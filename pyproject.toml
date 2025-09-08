@@ -10,7 +10,9 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "numpy",
-    "bindsnet",
+    "torch",
+    "torchvision",
+    "bindsnet @ git+https://github.com/BindsNET/bindsnet.git",
     "scipy",
     "matplotlib"
 ]
