@@ -7,7 +7,7 @@ authors = [
 ]
 license = "MIT"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.12"
 dependencies = [
     "numpy",
     "bindsnet",
@@ -18,6 +18,3 @@ dependencies = [
 [project.urls]
 "Homepage" = "https://github.com/your-username/spiking-network-info-transmission"
 "Bug Tracker" = "https://github.com/your-username/spiking-network-info-transmission/issues"
-
-[tool.uv]
-python = "3.9"
