@@ -1,0 +1,23 @@
+[project]
+name = "spiking-network-info-transmission"
+version = "0.1.0"
+description = "A study on information transmission in multi-layer spiking networks with and without horizontal connections."
+authors = [
+    { name = "Your Name", email = "your.email@example.com" }
+]
+license = "MIT"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "numpy",
+    "bindsnet",
+    "scipy",
+    "matplotlib"
+]
+
+[project.urls]
+"Homepage" = "https://github.com/your-username/spiking-network-info-transmission"
+"Bug Tracker" = "https://github.com/your-username/spiking-network-info-transmission/issues"
+
+[tool.uv]
+python = "3.9"
