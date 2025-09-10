@@ -89,66 +89,39 @@ class SpikingNetwork(Network):
     def build(self):
         """Build the spiking neural network architecture."""
         self.network = Network(dt=self.dt)#, device=self.device)
-        self.input_layer = Input(n=self.n_inputs)
-        self.layer_one = self.node_class(n=self.n_layer_one)
-        self.layer_two = self.node_class(n=self.n_layer_two)
-        self.layer_three = self.node_class(n=self.n_layer_three)
+        self.input_layer = Input(n=self.n_inputs, traces=True)
+        self.layer_one = self.node_class(n=self.n_layer_one, traces=True)
+        self.layer_two = self.node_class(n=self.n_layer_two, traces=True)
+        self.layer_three = self.node_class(n=self.n_layer_three, traces=True)
         self.network.add_layer(self.input_layer, name="Input")
         self.network.add_layer(self.layer_one, name="Layer1")
         self.network.add_layer(self.layer_two, name="Layer2")
         self.network.add_layer(self.layer_three, name="Layer3")
-        if self.learning_feedforward is not None:
-            self.network.add_connection(
-                Connection(source=self.input_layer, target=self.layer_one, w=self.ff1_weights, update_rule=self.learning_feedforward, nu=self.learning_feedforward_nu), 
-                source="Input", target="Layer1"
-            )
-            self.network.add_connection(
-            Connection(source=self.layer_one, target=self.layer_two, w=self.ff2_weights, update_rule=self.learning_feedforward, nu=self.learning_feedforward_nu), 
-            source="Layer1", target="Layer2"
-            )
-            self.network.add_connection(
-            Connection(source=self.layer_two, target=self.layer_three, w=self.ff3_weights, update_rule=self.learning_feedforward, nu=self.learning_feedforward_nu), 
-            source="Layer2", target="Layer3"
-            )
-        else:
-            self.network.add_connection(
-                Connection(source=self.input_layer, target=self.layer_one, w=self.ff1_weights), 
-                source="Input", target="Layer1"
-            )
-            self.network.add_connection(
-            Connection(source=self.layer_one, target=self.layer_two, w=self.ff2_weights), 
-            source="Layer1", target="Layer2"
-            )
-            self.network.add_connection(
-            Connection(source=self.layer_two, target=self.layer_three, w=self.ff3_weights), 
-            source="Layer2", target="Layer3"
-            )
-        if self.learning_lateral is not None:
-            self.network.add_connection(
-                Connection(source=self.layer_one, target=self.layer_one, w=self.rec1_weights, update_rule=self.learning_lateral, nu=self.learning_lateral_nu), 
-                source="Layer1", target="Layer1"
-            )
-            self.network.add_connection(
-                Connection(source=self.layer_two, target=self.layer_two, w=self.rec2_weights, update_rule=self.learning_lateral, nu=self.learning_lateral_nu), 
-                source="Layer2", target="Layer2"
-            )
-            self.network.add_connection(
-                Connection(source=self.layer_three, target=self.layer_three, w=self.rec3_weights, update_rule=self.learning_lateral, nu=self.learning_lateral_nu), 
-                source="Layer3", target="Layer3"
-            )
-        else:
-            self.network.add_connection(
-                Connection(source=self.layer_one, target=self.layer_one, w=self.rec1_weights), 
-                source="Layer1", target="Layer1"
-            )
-            self.network.add_connection(
-                Connection(source=self.layer_two, target=self.layer_two, w=self.rec2_weights), 
-                source="Layer2", target="Layer2"
-            )
-            self.network.add_connection(
-                Connection(source=self.layer_three, target=self.layer_three, w=self.rec3_weights), 
-                source="Layer3", target="Layer3"
-            )
+        self.network.add_connection(
+            Connection(source=self.input_layer, target=self.layer_one, w=self.ff1_weights, update_rule=self.learning_feedforward, nu=self.learning_feedforward_nu), 
+            source="Input", target="Layer1"
+        )
+        self.network.add_connection(
+        Connection(source=self.layer_one, target=self.layer_two, w=self.ff2_weights, update_rule=self.learning_feedforward, nu=self.learning_feedforward_nu), 
+        source="Layer1", target="Layer2"
+        )
+        self.network.add_connection(
+        Connection(source=self.layer_two, target=self.layer_three, w=self.ff3_weights, update_rule=self.learning_feedforward, nu=self.learning_feedforward_nu), 
+        source="Layer2", target="Layer3"
+        )
+        self.network.add_connection(
+            Connection(source=self.layer_one, target=self.layer_one, w=self.rec1_weights, update_rule=self.learning_lateral, nu=self.learning_lateral_nu), 
+            source="Layer1", target="Layer1"
+        )
+        self.network.add_connection(
+            Connection(source=self.layer_two, target=self.layer_two, w=self.rec2_weights, update_rule=self.learning_lateral, nu=self.learning_lateral_nu), 
+            source="Layer2", target="Layer2"
+        )
+        self.network.add_connection(
+            Connection(source=self.layer_three, target=self.layer_three, w=self.rec3_weights, update_rule=self.learning_lateral, nu=self.learning_lateral_nu), 
+            source="Layer3", target="Layer3"
+        )
+
         self.input_monitor = Monitor(self.input_layer, state_vars=["s"], time=self.T)
         self.layer_one_monitor = Monitor(self.layer_one, state_vars=["s", "v"], time=self.T)
         self.layer_two_monitor = Monitor(self.layer_two, state_vars=["s", "v"], time=self.T)
@@ -160,7 +133,7 @@ class SpikingNetwork(Network):
 
     def run(self, inputs):
         """Run the network on provided inputs."""
-        self.network.run(inputs={"Input": inputs}, time=self.T)
+        self.network.run(inputs={"Input": inputs}, time=self.T, train=True)
 
     def plot(self, layer: int = 1, title: str | None = None):
         """Plot activity for a selected hidden layer.
