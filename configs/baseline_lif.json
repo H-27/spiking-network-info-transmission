@@ -1,0 +1,15 @@
+{
+  "n_inputs": 100,
+  "n_layer_one": 200,
+  "n_layer_two": 150,
+  "n_layer_three": 100,
+  "time": 400,
+  "dt": 1.0,
+  "device": "cpu",
+  "simulation_length": 400,
+  "learning_lateral": "Hebbian",
+  "learning_lateral_nu" : 0.01,
+  "learning_feedforward": null,
+  "learning_feedforward_nu": 0.01,
+  "node_type": "LIF"
+}
