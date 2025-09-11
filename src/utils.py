@@ -52,3 +52,11 @@ def measure_sparseness(firings):
     sparseness = (1 - (fr_mean ** 2) / fr_sq_mean) / (1 - 1 / n_neurons)
     return sparseness
 
+def measure_rate_of_firing(firings):
+    """
+    Measure the average firing rate of neurons.
+    """
+    n_neurons = firings.shape[0]
+    if n_neurons == 0:
+        return 0.0
+    return firings.sum() / n_neurons * 2

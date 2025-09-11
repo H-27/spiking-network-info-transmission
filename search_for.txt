@@ -6,7 +6,8 @@ Comparison of
     Each with weak and strong Stimuli
     Each with localized and clustered activations
 Measurement of
-    Firing rate
+    Spike count max
+    Spike count mean
+    Rate of fire
     Synchrony
-    ! Weight changes
     Sparsity

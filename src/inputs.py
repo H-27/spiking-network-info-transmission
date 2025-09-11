@@ -35,3 +35,17 @@ def poisson_input(
     spikes = (rand < p).astype(np.float32)
     return spikes
 
+def generate_input(T, n_inputs, dt, target_rate=10, bg_rate=5):
+    # Stimulate a group of neurons noisily
+    target_idx = np.concatenate(
+        [np.arange(0, 14), np.arange(52, 76), np.arange(80, 100), np.arange(200, 300)]
+    )
+
+    poisson_spikes = poisson_input(
+        T, n_inputs, dt, target_idx, target_rate, bg_rate, batch_size=1
+    )
+
+    return poisson_spikes
+
+
+
