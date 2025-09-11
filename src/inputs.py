@@ -34,3 +34,4 @@ def poisson_input(
     rand = np.random.rand(T, batch_size, n_neurons)
     spikes = (rand < p).astype(np.float32)
     return spikes
+

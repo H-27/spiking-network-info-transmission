@@ -1,0 +1,12 @@
+Comparison of 
+    Baseline: no lateral connection or inhibition
+    Weak 0.2 random and clustered
+    Medium 0.5 random and Clustered
+    Strong 1.0 random and Clustered
+    Each with weak and strong Stimuli
+    Each with localized and clustered activations
+Measurement of
+    Firing rate
+    Synchrony
+    ! Weight changes
+    Sparsity
