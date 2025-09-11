@@ -9,9 +9,9 @@
   "dt": 1.0,
   "device": "cpu",
   "simulation_length": 400,
-  "learning_lateral": "Hebbian",
+  "learning_lateral": null,
   "learning_lateral_nu" : [0.002, 0.005],
   "learning_feedforward": null,
   "learning_feedforward_nu": null,
-  "node_type": "LIF"
+  "node_type": "Izhikevich"
 }
