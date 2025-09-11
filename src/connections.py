@@ -67,11 +67,11 @@ def create_clustered_connection(
 
 def create_clustered_connection_with_density(
     n_neurons,
-    cluster_size,
+    num_clusters,
+    weight=1.0,
     window_size=1,
     density=1.0,
     weight_probability=1.0,
-    weight=1.0,
     distance_scale=5.0,
     distance_metric: str = "manhattan",
     normalize_prob: bool = True,
@@ -121,13 +121,10 @@ def create_clustered_connection_with_density(
     w : np.ndarray (n_neurons, n_neurons)
         Generated weight matrix.
     """
-    assert n_neurons % cluster_size == 0, (
-        "Total number of neurons must be divisible by cluster size."
-    )
+    cluster_size = n_neurons // num_clusters
     if rng is None:
         rng = np.random.default_rng()
 
-    num_clusters = n_neurons // cluster_size
     w = np.zeros((n_neurons, n_neurons), dtype=np.float32)
 
     half_extra = max(0, window_size // 2)
@@ -230,4 +227,3 @@ def connect_distance(n_neurons, _, sigma=3.0, p_max=0.5, circular=False, exclude
         P[np.diag_indices(n_neurons)] = 0.0
 
     return A
-connect_distance(100, None, circular=True)

@@ -7,6 +7,7 @@ from bindsnet.network.nodes import LIFNodes, AdaptiveLIFNodes, Input, Izhikevich
 from bindsnet.network.monitors import Monitor
 from bindsnet.network.topology import Connection
 from bindsnet.learning import WeightDependentPostPre, Hebbian, MSTDPET
+from connections import connect_random
 
 class SpikingNetwork(Network):
     def __init__(self, config):
@@ -131,9 +132,17 @@ class SpikingNetwork(Network):
         self.network.add_monitor(self.layer_two_monitor, name="Layer2Monitor")
         self.network.add_monitor(self.layer_three_monitor, name="Layer3Monitor")
 
-    def run(self, inputs):
+    def run(self, inputs, input_noise=0.0):
         """Run the network on provided inputs."""
-        self.network.run(inputs={"Input": inputs}, time=self.T, train=True)
+        # layer_one_noise = torch.from_numpy(connect_random(self.n_layer_one, self.n_layer_one, p=input_noise)).float()
+        # layer_two_noise = torch.from_numpy(connect_random(self.n_layer_two, self.n_layer_two, p=input_noise)).float()
+        # layer_three_noise = torch.from_numpy(connect_random(self.n_layer_three, self.n_layer_three, p=input_noise)).float()
+        
+        self.network.run(inputs={"Input": inputs, 
+                                "Layer1": torch.from_numpy(connect_random(self.time, self.n_layer_one, p=input_noise)).float(),
+                                "Layer2": torch.from_numpy(connect_random(self.time, self.n_layer_two, p=input_noise)).float(),
+                                "Layer3": torch.from_numpy(connect_random(self.time, self.n_layer_three, p=input_noise)).float()
+                                }, time=self.T, train=True)
 
     def plot(self, layer: int = 1, title: str | None = None):
         """Plot activity for a selected hidden layer.
@@ -173,6 +182,7 @@ class SpikingNetwork(Network):
         inputs_np = inp_s.T.cpu().numpy().astype(float)
         spikes_np = spikes_t.T.cpu().numpy().astype(float)
         volts_np = volts_t.T.cpu().numpy().astype(float)
+        print(volts_np)
         # Weights
         if isinstance(ff_w, torch.Tensor):
             ff_np = ff_w.detach().cpu().numpy()
