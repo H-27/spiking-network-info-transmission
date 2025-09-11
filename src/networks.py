@@ -8,6 +8,7 @@ from bindsnet.network.monitors import Monitor
 from bindsnet.network.topology import Connection
 from bindsnet.learning import WeightDependentPostPre, Hebbian, MSTDPET
 from connections import connect_random
+from typing import Dict, Iterable, Optional, Type
 
 class SpikingNetwork(Network):
     def __init__(self, config):
@@ -132,16 +133,17 @@ class SpikingNetwork(Network):
         self.network.add_monitor(self.layer_two_monitor, name="Layer2Monitor")
         self.network.add_monitor(self.layer_three_monitor, name="Layer3Monitor")
 
-    def run(self, inputs, input_noise=0.0):
+    def run(self, inputs, input_mean=0.0, input_scale=0.01):
         """Run the network on provided inputs."""
-        # layer_one_noise = torch.from_numpy(connect_random(self.n_layer_one, self.n_layer_one, p=input_noise)).float()
-        # layer_two_noise = torch.from_numpy(connect_random(self.n_layer_two, self.n_layer_two, p=input_noise)).float()
-        # layer_three_noise = torch.from_numpy(connect_random(self.n_layer_three, self.n_layer_three, p=input_noise)).float()
-        
-        self.network.run(inputs={"Input": inputs, 
-                                "Layer1": torch.from_numpy(connect_random(self.time, self.n_layer_one, p=input_noise)).float(),
-                                "Layer2": torch.from_numpy(connect_random(self.time, self.n_layer_two, p=input_noise)).float(),
-                                "Layer3": torch.from_numpy(connect_random(self.time, self.n_layer_three, p=input_noise)).float()
+        # Old noise implementation
+        noise1 = torch.from_numpy(np.random.normal(loc=input_mean, scale=input_scale, size=(self.T, self.n_layer_one))).float()
+        noise2 = torch.from_numpy(np.random.normal(loc=input_mean, scale=input_scale, size=(self.T, self.n_layer_two))).float()
+        noise3 = torch.from_numpy(np.random.normal(loc=input_mean, scale=input_scale, size=(self.T, self.n_layer_three))).float()
+        print(inputs.shape, noise1.shape, noise2.shape, noise3.shape)
+        self.network.run(inputs={"Input": inputs,
+                                "Layer1": noise1,
+                                "Layer2": noise2,
+                                "Layer3": noise3
                                 }, time=self.T, train=True)
 
     def plot(self, layer: int = 1, title: str | None = None):
@@ -182,7 +184,6 @@ class SpikingNetwork(Network):
         inputs_np = inp_s.T.cpu().numpy().astype(float)
         spikes_np = spikes_t.T.cpu().numpy().astype(float)
         volts_np = volts_t.T.cpu().numpy().astype(float)
-        print(volts_np)
         # Weights
         if isinstance(ff_w, torch.Tensor):
             ff_np = ff_w.detach().cpu().numpy()
@@ -226,3 +227,129 @@ class SpikingNetwork(Network):
         fig.tight_layout()
         plt.show()
         return fig, ax
+    
+    def plot_last(self, config):
+        """Plot activity for all layers."""
+        fig, ax = plt.subplots(nrows=3, ncols=5, figsize=(15, 10))
+        # Retrieve monitors
+        inp_s = self.input_monitor.get("s")
+        inp_s = inp_s[:, 0, :]
+        inp_s = inp_s.T.cpu().numpy().astype(float)  # [T, B, N_in] or [T, N_in]
+
+        layer1_s = self.layer_one_monitor.get("s")
+        layer1_s = layer1_s[:, 0, :]
+        layer1_s = layer1_s.T.cpu().numpy().astype(float)
+
+        layer1_v = self.layer_one_monitor.get("v")
+        layer1_v = layer1_v[:, 0, :]
+        layer1_v = layer1_v.T.cpu().numpy().astype(float)
+
+        layer2_s = self.layer_two_monitor.get("s")
+        layer2_s = layer2_s[:, 0, :]
+        layer2_s = layer2_s.T.cpu().numpy().astype(float)
+
+        layer2_v = self.layer_two_monitor.get("v")
+        layer2_v = layer2_v[:, 0, :]
+        layer2_v = layer2_v.T.cpu().numpy().astype(float)
+
+        layer3_s = self.layer_three_monitor.get("s")
+        layer3_s = layer3_s[:, 0, :]
+        layer3_s = layer3_s.T.cpu().numpy().astype(float)
+
+        layer3_v = self.layer_three_monitor.get("v")
+        layer3_v = layer3_v[:, 0, :]
+        layer3_v = layer3_v.T.cpu().numpy().astype(float)
+        # plot input
+        # Input
+        h, w = layer1_v.shape
+        ax[0, 0].imshow(inp_s, aspect=w / h, origin="lower")
+        ax[0, 0].set_title("Input spikes")
+        ax[0, 0].set_xlabel("Time [ms]")
+        ax[0, 0].set_ylabel("Input neurons")
+        # Input ff weights
+        ff_np = self.ff1_weights.detach().cpu().numpy()
+        ax[0, 1].imshow(ff_np, aspect="auto", origin="lower")
+        ax[0, 1].set_title("Feedforward")
+        ax[0, 1].set_xlabel("Post")
+        ax[0, 1].set_ylabel("Pre")
+        # Input rec weights
+        rec_np = self.rec1_weights.detach().cpu().numpy()
+        ax[0, 2].imshow(rec_np, aspect="auto", origin="lower")
+        ax[0, 2].set_title("Recurrent")
+        ax[0, 2].set_xlabel("Post")
+        ax[0, 2].set_ylabel("Pre")
+        # Input voltage
+        h, w = layer1_v.shape
+        ax[0, 3].imshow(layer1_v, aspect=w / h, origin="lower")
+        ax[0, 3].set_title("Voltage")
+        ax[0, 3].set_xlabel("Time [ms]")
+        ax[0, 3].set_ylabel("Neurons")
+        # Layer 1  output spikes
+        ax[0, 4].imshow(layer1_s, aspect=w / h, origin="lower")
+        ax[0, 4].set_title("Spikes")
+        ax[0, 4].set_xlabel("Time [ms]")
+        ax[0, 4].set_ylabel("Neurons")
+        # Layer 2
+        # Input
+        h, w = layer2_v.shape
+        noise = np.random.normal(loc=config["noise_mean"], scale=config["noise_scale"], size=(self.n_layer_two, self.T))
+        print(f'Max Noise Values: {np.max(noise)}, Min Noise Values: {np.min(noise)}')
+        print(f'Max Layer1 Spikes: {np.max(layer1_s)}, Min Layer1 Spikes: {np.min(layer1_s)}')
+        ax[1, 0].imshow(layer1_s + noise, aspect=w / h, origin="lower")
+        ax[1, 0].set_title("Layer 1 spikes + noise")
+        ax[1, 0].set_xlabel("Time [ms]")
+        ax[1, 0].set_ylabel("Neurons")
+        # Layer 2 ff weights
+        ff_np = self.ff2_weights.detach().cpu().numpy()
+        ax[1, 1].imshow(ff_np, aspect="auto", origin="lower")
+        ax[1, 1].set_title("Feedforward")
+        ax[1, 1].set_xlabel("Post")
+        ax[1, 1].set_ylabel("Pre")
+        # Layer 2 rec weights
+        rec_np = self.rec2_weights.detach().cpu().numpy()
+        ax[1, 2].imshow(rec_np, aspect="auto", origin="lower")
+        ax[1, 2].set_title("Recurrent")
+        ax[1, 2].set_xlabel("Post")
+        ax[1, 2].set_ylabel("Pre")
+        # Layer 2 voltage
+        h, w = layer2_v.shape
+        ax[1, 3].imshow(layer2_v, aspect=w / h, origin="lower")
+        ax[1, 3].set_title("Voltage")
+        ax[1, 3].set_xlabel("Time [ms]")
+        ax[1, 3].set_ylabel("Neurons")
+        # Layer 2 output spikes
+        ax[1, 4].imshow(layer2_s, aspect=w / h, origin="lower")
+        ax[1, 4].set_title("Spikes")
+        ax[1, 4].set_xlabel("Time [ms]")
+        ax[1, 4].set_ylabel("Neurons")
+        # Layer 3
+        # Input
+        h, w = layer3_v.shape
+        noise = np.random.normal(loc=config["noise_mean"], scale=config["noise_scale"], size=(self.n_layer_three, self.T))
+        ax[2, 0].imshow(np.add(layer2_s, noise), aspect=w / h, origin="lower")
+        ax[2, 0].set_title("Layer 2 spikes + noise")
+        ax[2, 0].set_xlabel("Time [ms]")
+        ax[2, 0].set_ylabel("Neurons")
+        # Layer 3 ff weights
+        ff_np = self.ff3_weights.detach().cpu().numpy()
+        ax[2, 1].imshow(ff_np, aspect="auto", origin="lower")
+        ax[2, 1].set_title("Feedforward")
+        ax[2, 1].set_xlabel("Post")
+        ax[2, 1].set_ylabel("Pre")
+        # Layer 3 rec weights
+        rec_np = self.rec3_weights.detach().cpu().numpy()
+        ax[2, 2].imshow(rec_np, aspect="auto", origin="lower")
+        ax[2, 2].set_title("Recurrent")
+        ax[2, 2].set_xlabel("Post")
+        ax[2, 2].set_ylabel("Pre")
+        # Layer 3 voltage
+        h, w = layer3_v.shape
+        ax[2, 3].imshow(layer3_v, aspect=w / h, origin="lower")
+        ax[2, 3].set_title("Voltage")
+        ax[2, 3].set_xlabel("Time [ms]")
+        ax[2, 3].set_ylabel("Neurons")
+        # Layer 3 output spikes
+        ax[2, 4].imshow(layer3_s, aspect=w / h, origin="lower")
+        ax[2, 4].set_title("Spikes")
+        ax[2, 4].set_xlabel("Time [ms]")
+        ax[2, 4].set_ylabel("Neurons")
