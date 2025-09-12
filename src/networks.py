@@ -1,15 +1,20 @@
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 import torch
-
+from bindsnet.learning import MSTDPET, Hebbian, WeightDependentPostPre
 from bindsnet.network import Network
-from bindsnet.network.nodes import LIFNodes, AdaptiveLIFNodes, Input, IzhikevichNodes 
 from bindsnet.network.monitors import Monitor
+from bindsnet.network.nodes import AdaptiveLIFNodes, Input, IzhikevichNodes, LIFNodes
 from bindsnet.network.topology import Connection
-from bindsnet.learning import WeightDependentPostPre, Hebbian, MSTDPET
-from connections import connect_random
-from typing import Dict, Iterable, Optional, Type
-from utils import measure_rsync, measure_mean_sc, measure_max_sc, measure_sparseness
+
+from utils import (
+    measure_max_sc,
+    measure_mean_sc,
+    measure_rate_of_firing,
+    measure_rsync,
+    measure_sparseness,
+)
+
 
 class SpikingNetwork(Network):
     def __init__(self, config):
@@ -52,7 +57,7 @@ class SpikingNetwork(Network):
             print("No learning for feedforward connections.")
             self.learning_feedforward = None
         self.learning_feedforward_nu = config["learning_feedforward_nu"]
-        
+
         self.node_type = config["node_type"]
         self.input_node = Input(n=self.n_inputs)
         if self.node_type == "LIF":
@@ -88,10 +93,10 @@ class SpikingNetwork(Network):
         self.rec2_weights = torch.from_numpy(rec2)
         self.ff3_weights = torch.from_numpy(ff3)
         self.rec3_weights = torch.from_numpy(rec3)
-    
+
     def build(self):
         """Build the spiking neural network architecture."""
-        self.network = Network(dt=self.dt)#, device=self.device)
+        self.network = Network(dt=self.dt)  # , device=self.device)
         self.input_layer = Input(n=self.n_inputs, traces=True)
         self.layer_one = self.node_class(n=self.n_layer_one, traces=True)
         self.layer_two = self.node_class(n=self.n_layer_two, traces=True)
@@ -101,34 +106,82 @@ class SpikingNetwork(Network):
         self.network.add_layer(self.layer_two, name="Layer2")
         self.network.add_layer(self.layer_three, name="Layer3")
         self.network.add_connection(
-            Connection(source=self.input_layer, target=self.layer_one, w=self.ff1_weights, update_rule=self.learning_feedforward, nu=self.learning_feedforward_nu), 
-            source="Input", target="Layer1"
+            Connection(
+                source=self.input_layer,
+                target=self.layer_one,
+                w=self.ff1_weights,
+                update_rule=self.learning_feedforward,
+                nu=self.learning_feedforward_nu,
+            ),
+            source="Input",
+            target="Layer1",
         )
         self.network.add_connection(
-        Connection(source=self.layer_one, target=self.layer_two, w=self.ff2_weights, update_rule=self.learning_feedforward, nu=self.learning_feedforward_nu), 
-        source="Layer1", target="Layer2"
+            Connection(
+                source=self.layer_one,
+                target=self.layer_two,
+                w=self.ff2_weights,
+                update_rule=self.learning_feedforward,
+                nu=self.learning_feedforward_nu,
+            ),
+            source="Layer1",
+            target="Layer2",
         )
         self.network.add_connection(
-        Connection(source=self.layer_two, target=self.layer_three, w=self.ff3_weights, update_rule=self.learning_feedforward, nu=self.learning_feedforward_nu), 
-        source="Layer2", target="Layer3"
+            Connection(
+                source=self.layer_two,
+                target=self.layer_three,
+                w=self.ff3_weights,
+                update_rule=self.learning_feedforward,
+                nu=self.learning_feedforward_nu,
+            ),
+            source="Layer2",
+            target="Layer3",
         )
         self.network.add_connection(
-            Connection(source=self.layer_one, target=self.layer_one, w=self.rec1_weights, update_rule=self.learning_lateral, nu=self.learning_lateral_nu), 
-            source="Layer1", target="Layer1"
+            Connection(
+                source=self.layer_one,
+                target=self.layer_one,
+                w=self.rec1_weights,
+                update_rule=self.learning_lateral,
+                nu=self.learning_lateral_nu,
+            ),
+            source="Layer1",
+            target="Layer1",
         )
         self.network.add_connection(
-            Connection(source=self.layer_two, target=self.layer_two, w=self.rec2_weights, update_rule=self.learning_lateral, nu=self.learning_lateral_nu), 
-            source="Layer2", target="Layer2"
+            Connection(
+                source=self.layer_two,
+                target=self.layer_two,
+                w=self.rec2_weights,
+                update_rule=self.learning_lateral,
+                nu=self.learning_lateral_nu,
+            ),
+            source="Layer2",
+            target="Layer2",
         )
         self.network.add_connection(
-            Connection(source=self.layer_three, target=self.layer_three, w=self.rec3_weights, update_rule=self.learning_lateral, nu=self.learning_lateral_nu), 
-            source="Layer3", target="Layer3"
+            Connection(
+                source=self.layer_three,
+                target=self.layer_three,
+                w=self.rec3_weights,
+                update_rule=self.learning_lateral,
+                nu=self.learning_lateral_nu,
+            ),
+            source="Layer3",
+            target="Layer3",
         )
 
         self.input_monitor = Monitor(self.input_layer, state_vars=["s"], time=self.T)
-        self.layer_one_monitor = Monitor(self.layer_one, state_vars=["s", "v"], time=self.T)
-        self.layer_two_monitor = Monitor(self.layer_two, state_vars=["s", "v"], time=self.T)
-        self.layer_three_monitor = Monitor(self.layer_three, state_vars=["s", "v"], time=self.T)
+        self.layer_one_monitor = Monitor(
+            self.layer_one, state_vars=["s", "v"], time=self.T
+        )
+        self.layer_two_monitor = Monitor(
+            self.layer_two, state_vars=["s", "v"], time=self.T
+        )
+        self.layer_three_monitor = Monitor(
+            self.layer_three, state_vars=["s", "v"], time=self.T
+        )
         self.network.add_monitor(self.input_monitor, name="InputMonitor")
         self.network.add_monitor(self.layer_one_monitor, name="Layer1Monitor")
         self.network.add_monitor(self.layer_two_monitor, name="Layer2Monitor")
@@ -137,15 +190,32 @@ class SpikingNetwork(Network):
     def run(self, inputs, input_mean=0.0, input_scale=0.01):
         """Run the network on provided inputs."""
         # Old noise implementation
-        noise1 = torch.from_numpy(np.random.normal(loc=input_mean, scale=input_scale, size=(self.T, self.n_layer_one))).float()
-        noise2 = torch.from_numpy(np.random.normal(loc=input_mean, scale=input_scale, size=(self.T, self.n_layer_two))).float()
-        noise3 = torch.from_numpy(np.random.normal(loc=input_mean, scale=input_scale, size=(self.T, self.n_layer_three))).float()
+        noise1 = torch.from_numpy(
+            np.random.normal(
+                loc=input_mean, scale=input_scale, size=(self.T, self.n_layer_one)
+            )
+        ).float()
+        noise2 = torch.from_numpy(
+            np.random.normal(
+                loc=input_mean, scale=input_scale, size=(self.T, self.n_layer_two)
+            )
+        ).float()
+        noise3 = torch.from_numpy(
+            np.random.normal(
+                loc=input_mean, scale=input_scale, size=(self.T, self.n_layer_three)
+            )
+        ).float()
         print(inputs.shape, noise1.shape, noise2.shape, noise3.shape)
-        self.network.run(inputs={"Input": inputs,
-                                "Layer1": noise1,
-                                "Layer2": noise2,
-                                "Layer3": noise3
-                                }, time=self.T, train=True)
+        self.network.run(
+            inputs={
+                "Input": inputs,
+                "Layer1": noise1,
+                "Layer2": noise2,
+                "Layer3": noise3,
+            },
+            time=self.T,
+            train=True,
+        )
 
     def calculate_metrics(self, layer: int = 1):
         """Calculate and print activity metrics for a selected hidden layer.
@@ -169,14 +239,15 @@ class SpikingNetwork(Network):
         # Convert to (neurons, time)
         spikes_np = spikes_t.T.cpu().numpy().astype(float)
         # Calculate metrics
-        
+
         rsync = measure_rsync(spikes_np)
         mean_sc = measure_mean_sc(spikes_np)
         max_sc = measure_max_sc(spikes_np)
         sparseness = measure_sparseness(spikes_np)
-        return rsync, mean_sc, max_sc, sparseness
-    
-    def plot_last(self, config):
+        rate_of_fire = measure_rate_of_firing(spikes_np)
+        return rsync, mean_sc, max_sc, sparseness, rate_of_fire
+
+    def plot_last(self, config, save_to=None):
         """Plot activity for all layers."""
         fig, ax = plt.subplots(nrows=3, ncols=5, figsize=(15, 10))
         # Retrieve monitors
@@ -207,7 +278,7 @@ class SpikingNetwork(Network):
         layer3_v = self.layer_three_monitor.get("v")
         layer3_v = layer3_v[:, 0, :]
         layer3_v = layer3_v.T.cpu().numpy().astype(float)
-        
+
         # plot input
         # Input
         h, w = layer1_v.shape
@@ -241,7 +312,11 @@ class SpikingNetwork(Network):
         # Layer 2
         # Input
         h, w = layer2_v.shape
-        noise = np.random.normal(loc=config["noise_mean"], scale=config["noise_scale"], size=(self.n_layer_two, self.T))
+        noise = np.random.normal(
+            loc=config["noise_mean"],
+            scale=config["noise_scale"],
+            size=(self.n_layer_two, self.T),
+        )
         ax[1, 0].imshow(layer1_s + noise, aspect=w / h, origin="lower")
         ax[1, 0].set_title("Layer 1 spikes + noise")
         ax[1, 0].set_xlabel("Time [ms]")
@@ -272,7 +347,11 @@ class SpikingNetwork(Network):
         # Layer 3
         # Input
         h, w = layer3_v.shape
-        noise = np.random.normal(loc=config["noise_mean"], scale=config["noise_scale"], size=(self.n_layer_three, self.T))
+        noise = np.random.normal(
+            loc=config["noise_mean"],
+            scale=config["noise_scale"],
+            size=(self.n_layer_three, self.T),
+        )
         ax[2, 0].imshow(np.add(layer2_s, noise), aspect=w / h, origin="lower")
         ax[2, 0].set_title("Layer 2 spikes + noise")
         ax[2, 0].set_xlabel("Time [ms]")
@@ -300,3 +379,6 @@ class SpikingNetwork(Network):
         ax[2, 4].set_title("Spikes")
         ax[2, 4].set_xlabel("Time [ms]")
         ax[2, 4].set_ylabel("Neurons")
+
+        if save_to is not None:
+            plt.savefig(save_to)
