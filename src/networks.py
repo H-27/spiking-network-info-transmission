@@ -209,9 +209,9 @@ class SpikingNetwork(Network):
         self.network.run(
             inputs={
                 "Input": inputs,
-                "Layer1": noise1,
-                "Layer2": noise2,
-                "Layer3": noise3,
+                # "Layer1": noise1,
+                # "Layer2": noise2,
+                # "Layer3": noise3,
             },
             time=self.T,
             train=True,
@@ -381,4 +381,9 @@ class SpikingNetwork(Network):
         ax[2, 4].set_ylabel("Neurons")
 
         if save_to is not None:
-            plt.savefig(save_to)
+            plt.tight_layout()
+            plt.savefig(save_to, bbox_inches="tight")
+            plt.close(fig)
+        else:
+            plt.tight_layout()
+            plt.show()

@@ -1,0 +1,23 @@
+{
+  "layer1": {
+    "rsync": 0.007947231987119956,
+    "mean_sc": 7.54,
+    "max_sc": 22.0,
+    "sparseness": 0.9938879598662207,
+    "rate_of_fire": 7.54
+  },
+  "layer2": {
+    "rsync": 0.0,
+    "mean_sc": 0.0,
+    "max_sc": 0.0,
+    "sparseness": 0.0,
+    "rate_of_fire": 0.0
+  },
+  "layer3": {
+    "rsync": 0.0,
+    "mean_sc": 0.0,
+    "max_sc": 0.0,
+    "sparseness": 0.0,
+    "rate_of_fire": 0.0
+  }
+}

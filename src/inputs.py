@@ -1,12 +1,7 @@
 import numpy as np
 
-def poisson_input(
-    T, n_neurons, dt,
-    target_idx,
-    target_rate,
-    bg_rate,
-    batch_size=1
-):
+
+def poisson_input(T, n_neurons, dt, target_idx, target_rate, bg_rate, batch_size=1):
     """
     Generate Poisson spike trains in numpy.
 
@@ -35,17 +30,21 @@ def poisson_input(
     spikes = (rand < p).astype(np.float32)
     return spikes
 
-def generate_input(T, n_inputs, dt, target_rate=10, bg_rate=5):
+
+def generate_input(T, n_inputs, dt, target_rate=10, bg_rate=5, target_idx=None):
     # Stimulate a group of neurons noisily
-    target_idx = np.concatenate(
-        [np.arange(0, 14), np.arange(52, 76), np.arange(80, 100), np.arange(200, 300)]
-    )
+    if target_idx is None:
+        target_idx = np.concatenate(
+            [
+                np.arange(0, 14),
+                np.arange(52, 76),
+                np.arange(80, 100),
+                np.arange(200, 300),
+            ]
+        )
 
     poisson_spikes = poisson_input(
         T, n_inputs, dt, target_idx, target_rate, bg_rate, batch_size=1
     )
 
     return poisson_spikes
-
-
-

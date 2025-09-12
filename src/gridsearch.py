@@ -1,10 +1,116 @@
 import os
+import sys
 
-from debugpy.common import json
+# Get the directory of the current script
+current_dir = os.path.dirname(os.path.abspath(__file__))
+
+# Add the project root to the Python path
+project_root = os.path.abspath(os.path.join(current_dir, ".."))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+# Use a non-interactive backend before any pyplot import occurs anywhere
+import matplotlib
+
+matplotlib.use("Agg")
+
+import json
+import re
+
+import matplotlib.pyplot as plt
+import numpy as np
+import torch
 
 from connections import connect_clustered_lateral, connect_one_to_one, connect_random
 from inputs import generate_input
 from networks import SpikingNetwork
+
+
+def plot_metrics(input_type: str):
+    """Aggregate saved metrics for a given input type and plot comparisons.
+
+    Expects files in results/<input_type>/ named like:
+      metrics_weight{weight}_connection{conn_type}_input{input_type}.json
+    with structure: {"layer1": {...}, "layer2": {...}, "layer3": {...}}
+
+    Saves one figure per metric with two subplots (Clustered, Random),
+    each showing metric vs weight for all three layers.
+    """
+    base_dir = os.path.join(project_root, "results", input_type)
+    if not os.path.isdir(base_dir):
+        return
+
+    pattern = re.compile(
+        r"metrics_weight(?P<weight>[^_]+)_connection(?P<conn>[^_]+)_input"
+    )
+
+    # metrics[layer][metric][conn][weight] = value
+    metrics = {f"layer{i}": {} for i in (1, 2, 3)}
+    weights = set()
+    conns = set()
+
+    for fname in os.listdir(base_dir):
+        if not (fname.startswith("metrics_") and fname.endswith(".json")):
+            continue
+        m = pattern.search(fname)
+        if not m:
+            continue
+        try:
+            weight = float(m.group("weight"))
+        except Exception:
+            continue
+        conn = m.group("conn")
+        conns.add(conn)
+        weights.add(weight)
+        fpath = os.path.join(base_dir, fname)
+        try:
+            with open(fpath, "r") as f:
+                data = json.load(f)
+        except Exception:
+            continue
+        for layer_key, layer_vals in data.items():
+            for metric_name, val in layer_vals.items():
+                metrics[layer_key].setdefault(metric_name, {}).setdefault(conn, {})[
+                    weight
+                ] = val
+
+    if not any(metrics[layer] for layer in metrics):
+        return
+
+    weights = sorted(weights)
+    conns = sorted(conns)
+
+    layer_colors = {"layer1": "tab:blue", "layer2": "tab:orange", "layer3": "tab:green"}
+
+    # Collect all metric names across layers
+    metric_names = set()
+    for layer in metrics.values():
+        metric_names.update(layer.keys())
+
+    for metric_name in sorted(metric_names):
+        fig, axes = plt.subplots(1, 2, figsize=(10, 4), sharey=True)
+        for ax, conn in zip(axes, ["Clustered", "Random"]):
+            for layer_key in ("layer1", "layer2", "layer3"):
+                by_conn = metrics.get(layer_key, {}).get(metric_name, {})
+                y = [by_conn.get(conn, {}).get(w, np.nan) for w in weights]
+                ax.plot(
+                    weights,
+                    y,
+                    marker="o",
+                    label=layer_key,
+                    color=layer_colors[layer_key],
+                )
+            ax.set_title(conn)
+            ax.set_xlabel("weight")
+            ax.grid(True, alpha=0.3)
+        axes[0].set_ylabel(metric_name)
+        axes[1].legend(loc="best")
+        fig.suptitle(f"{metric_name} vs weight — {input_type}")
+        out_path = os.path.join(base_dir, f"{metric_name}_trend_{input_type}.png")
+        plt.tight_layout()
+        plt.savefig(out_path, bbox_inches="tight")
+        plt.close(fig)
+
 
 if __name__ == "__main__":
     # Grid search parameters
@@ -28,43 +134,98 @@ if __name__ == "__main__":
     # Define params
     T = config["time"]
     dt = config["dt"]
-    n_neurons = config["n_neurons"]
     n_inputs = config["n_inputs"]
-    target_rate = 30.0
-    bg_rate = 30.0
 
     # Create feedforward connections
     ff1 = connect_one_to_one(config["n_inputs"], config["n_layer_one"])
     ff2 = connect_one_to_one(config["n_layer_one"], config["n_layer_two"])
     ff3 = connect_one_to_one(config["n_layer_two"], config["n_layer_three"])
+    input_factor = 20
 
     # Create inputs
-    weakly_distributed = generate_input(
-        n_inputs=n_inputs,
-        target_rate=target_rate,
-        bg_rate=bg_rate,
-        distribution="weakly",
+    """
+    T, n_inputs, dt, target_rate=10, bg_rate=5
+    """
+    # Weakly distributed input
+    target_weakly_distr = np.concatenate(
+        [
+            np.arange(0, 14),
+            np.arange(52, 76),
+            np.arange(80, 100),
+            np.arange(200, 300),
+        ]
     )
-    strongly_distributed = generate_input(
-        n_inputs=n_inputs,
-        target_rate=target_rate,
-        bg_rate=bg_rate,
-        distribution="strongly",
+    weakly_distributed = (
+        generate_input(
+            T=T,
+            n_inputs=n_inputs,
+            dt=dt,
+            target_rate=15,
+            bg_rate=5,
+        )
+    ) * input_factor
+    weakly_distributed = torch.from_numpy(weakly_distributed[:, 0, :])
+
+    # Strongly distributed input
+    target_strongly_distr = np.concatenate(
+        [
+            np.arange(0, 14),
+            np.arange(52, 76),
+            np.arange(80, 100),
+            np.arange(200, 300),
+        ]
     )
-    weakly_clustered = generate_input(
-        n_inputs=n_inputs,
-        target_rate=target_rate,
-        bg_rate=bg_rate,
-        distribution="weakly",
-        cluster=True,
+    strongly_distributed = (
+        generate_input(
+            T=T,
+            n_inputs=n_inputs,
+            dt=dt,
+            target_rate=50,
+            bg_rate=5,
+        )
+    ) * input_factor
+    strongly_distributed = torch.from_numpy(strongly_distributed[:, 0, :])
+
+    # Weakly clustered input
+    target_weakly_clustered = np.concatenate(
+        [
+            np.arange(0, 29),
+            np.arange(60, 89),
+            np.arange(120, 149),
+            np.arange(270, 299),
+        ]
     )
-    strongly_clustered = generate_input(
-        n_inputs=n_inputs,
-        target_rate=target_rate,
-        bg_rate=bg_rate,
-        distribution="strongly",
-        cluster=True,
+    weakly_clustered = (
+        generate_input(
+            T=T,
+            n_inputs=n_inputs,
+            dt=dt,
+            target_rate=15,
+            bg_rate=5,
+        )
+    ) * input_factor
+    weakly_clustered = torch.from_numpy(weakly_clustered[:, 0, :])
+
+    # Strongly clustered input
+    target_strongly_clustered = np.concatenate(
+        [
+            np.arange(0, 29),
+            np.arange(60, 89),
+            np.arange(120, 149),
+            np.arange(270, 299),
+        ]
     )
+    strongly_clustered = (
+        generate_input(
+            T=T,
+            n_inputs=n_inputs,
+            dt=dt,
+            target_rate=50,
+            bg_rate=5,
+        )
+        * input_factor
+    )
+    strongly_clustered = torch.from_numpy(strongly_clustered[:, 0, :])
 
     inputs = {
         "weakly_distributed": weakly_distributed,
@@ -75,111 +236,126 @@ if __name__ == "__main__":
 
     for weight in WEIGHT_VALUES:
         for conn_type in LATERAL_CONNECTIONS:
-            net = SpikingNetwork(config)
-            # Create connections
-            if conn_type == "Clustered":
-                rec1 = (
-                    connect_clustered_lateral(
-                        config["n_layer_one"],
-                        n_clusters=config["cluster_size"],
-                        p_intra=0.8,
-                        connect_clusters=True,
-                        exclude_self=True,
+            for input_type, input_data in inputs.items():
+                net = SpikingNetwork(config)
+                # Create connections
+                if conn_type == "Clustered":
+                    rec1 = (
+                        connect_clustered_lateral(
+                            config["n_layer_one"],
+                            n_clusters=config["cluster_size"],
+                            p_intra=0.8,
+                            connect_clusters=True,
+                            exclude_self=True,
+                        )
+                        * weight
+                        + connect_random(
+                            config["n_layer_one"],
+                            config["n_layer_one"],
+                            p=config["noise_level"],
+                        )
+                        * weight
                     )
-                    * weight
-                    + connect_random(
-                        config["n_layer_one"],
-                        config["n_layer_one"],
-                        p=config["noise_level"],
+                    rec2 = (
+                        connect_clustered_lateral(
+                            config["n_layer_one"],
+                            n_clusters=config["cluster_size"],
+                            p_intra=0.8,
+                            connect_clusters=True,
+                            exclude_self=True,
+                        )
+                        * weight
+                        + connect_random(
+                            config["n_layer_two"],
+                            config["n_layer_two"],
+                            p=config["noise_level"],
+                        )
+                        * weight
                     )
-                    * weight
+                    rec3 = (
+                        connect_clustered_lateral(
+                            config["n_layer_one"],
+                            n_clusters=config["cluster_size"],
+                            p_intra=0.8,
+                            connect_clusters=True,
+                            exclude_self=True,
+                        )
+                        * weight
+                        + connect_random(
+                            config["n_layer_three"],
+                            config["n_layer_three"],
+                            p=config["noise_level"],
+                        )
+                        * weight
+                    )
+                else:
+                    rec1 = (
+                        connect_random(
+                            config["n_layer_one"],
+                            config["n_layer_one"],
+                            p=config["noise_level"],
+                        )
+                        * weight
+                    )
+                    rec2 = (
+                        connect_random(
+                            config["n_layer_two"],
+                            config["n_layer_two"],
+                            p=config["noise_level"],
+                        )
+                        * weight
+                    )
+                    rec3 = (
+                        connect_random(
+                            config["n_layer_three"],
+                            config["n_layer_three"],
+                            p=config["noise_level"],
+                        )
+                        * weight
+                    )
+
+                net.add_weights(ff1, rec1, ff2, rec2, ff3, rec3)
+                net.build()
+
+                # Run simulation
+                net.run(inputs=input_data)
+                # Save results
+                results_dir = os.path.join(project_root, "results")
+                if not os.path.exists(results_dir):
+                    os.makedirs(results_dir)
+                # Compute metrics for all layers
+                metrics_all = {}
+                for i in (1, 2, 3):
+                    rsync, mean_sc, max_sc, sparseness, rate_of_fire = (
+                        net.calculate_metrics(layer=i)
+                    )
+                    metrics_all[f"layer{i}"] = {
+                        "rsync": rsync,
+                        "mean_sc": mean_sc,
+                        "max_sc": max_sc,
+                        "sparseness": sparseness,
+                        "rate_of_fire": rate_of_fire,
+                    }
+                # Create a subdirectory per input type to keep filenames short & valid
+                run_dir = os.path.join(results_dir, input_type)
+                if not os.path.exists(run_dir):
+                    os.makedirs(run_dir)
+
+                result_metrics_path = os.path.join(
+                    run_dir,
+                    f"metrics_weight{weight}_connection{conn_type}_input{input_type}.json",
                 )
-                rec2 = (
-                    connect_clustered_lateral(
-                        config["n_layer_one"],
-                        n_clusters=config["cluster_size"],
-                        p_intra=0.8,
-                        connect_clusters=True,
-                        exclude_self=True,
-                    )
-                    * weight
-                    + connect_random(
-                        config["n_layer_two"],
-                        config["n_layer_two"],
-                        p=config["noise_level"],
-                    )
-                    * weight
-                )
-                rec3 = (
-                    connect_clustered_lateral(
-                        config["n_layer_one"],
-                        n_clusters=config["cluster_size"],
-                        p_intra=0.8,
-                        connect_clusters=True,
-                        exclude_self=True,
-                    )
-                    * weight
-                    + connect_random(
-                        config["n_layer_three"],
-                        config["n_layer_three"],
-                        p=config["noise_level"],
-                    )
-                    * weight
-                )
-            else:
-                rec1 = (
-                    connect_random(
-                        config["n_layer_one"],
-                        config["n_layer_one"],
-                        p=config["noise_level"],
-                    )
-                    * weight
-                )
-                rec2 = (
-                    connect_random(
-                        config["n_layer_two"],
-                        config["n_layer_two"],
-                        p=config["noise_level"],
-                    )
-                    * weight
-                )
-                rec3 = (
-                    connect_random(
-                        config["n_layer_three"],
-                        config["n_layer_three"],
-                        p=config["noise_level"],
-                    )
-                    * weight
+                result_plots_path = os.path.join(
+                    run_dir,
+                    f"plots_weight{weight}_connection{conn_type}_input{input_type}.png",
                 )
 
-            net.add_weights(ff1, rec1, ff2, rec2, ff3, rec3)
-            net.build()
+                # Write metrics json
+                with open(result_metrics_path, "w") as f:
+                    json.dump(metrics_all, f, indent=2)
 
-            # Run simulation
-            net.run()
-            # Save results
-            results_dir = os.path.join(
-                project_root,
-                "results",
-                f"gridsearch_{NODE_TYPE}_weight{weight}_{conn_type}",
-            )
-            if not os.path.exists(results_dir):
-                os.makedirs(results_dir)
-            rsync, mean_sc, max_sc, sparseness, rate_of_fire = net.calculate_metrics()
-            results = {
-                "rsync": rsync,
-                "mean_sc": mean_sc,
-                "max_sc": max_sc,
-                "sparseness": sparseness,
-                "rate_of_fire": rate_of_fire,
-            }
-            result_metrics_path = os.path.join(
-                results_dir,
-                f"metrics_of_weight{weight}_connection{conn_type}_input.json",
-            )
-            result_plots_path = os.path.join(
-                results_dir,
-                f"plots_of_weight{weight}_connection{conn_type}_input.png",
-            )
+                net.plot_last(config, save_to=result_plots_path)
 
-            net.plot_last(config, save_to=result_plots_path)
+    # After all runs, produce comparison plots per input type
+    for it in inputs.keys():
+        plot_metrics(it)
