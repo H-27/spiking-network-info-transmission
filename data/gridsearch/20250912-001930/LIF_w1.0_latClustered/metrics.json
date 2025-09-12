@@ -1,0 +1,20 @@
+{
+  "layer1": {
+    "rsync": 0.023892452533392724,
+    "mean_spike_count": 35.62,
+    "max_spike_count": 78.0,
+    "sparseness": 0.9692261306532663
+  },
+  "layer2": {
+    "rsync": 0.0,
+    "mean_spike_count": 0.0,
+    "max_spike_count": 0.0,
+    "sparseness": 0.0
+  },
+  "layer3": {
+    "rsync": 0.0,
+    "mean_spike_count": 0.0,
+    "max_spike_count": 0.0,
+    "sparseness": 0.0
+  }
+}

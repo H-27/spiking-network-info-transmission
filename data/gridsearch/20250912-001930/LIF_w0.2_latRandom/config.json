@@ -5,7 +5,7 @@
   "n_layer_three": 200,
   "cluster_size": 5,
   "noise_level": 0.01,
-  "weight_strength": 0.5,
+  "weight_strength": 0.2,
   "noise_mean": 0.0,
   "noise_scale": 0.1,
   "time": 500,
@@ -13,7 +13,7 @@
   "device": "cpu",
   "simulation_length": 500,
   "learning_lateral": null,
-  "learning_lateral_nu" : null,
+  "learning_lateral_nu": null,
   "learning_feedforward": null,
   "learning_feedforward_nu": null,
   "node_type": "LIF"

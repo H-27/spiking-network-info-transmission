@@ -13,7 +13,7 @@
   "device": "cpu",
   "simulation_length": 500,
   "learning_lateral": null,
-  "learning_lateral_nu" : null,
+  "learning_lateral_nu": null,
   "learning_feedforward": null,
   "learning_feedforward_nu": null,
   "node_type": "LIF"
