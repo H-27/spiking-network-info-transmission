@@ -42,7 +42,7 @@ class SpikingNetwork(Network):
         elif self.learning_lateral_type == "MSTDPET":
             self.learning_lateral = MSTDPET
         else:
-            print("No learning for lateral connections.")
+            # print("No learning for lateral connections.")
             self.learning_lateral = None
         self.learning_lateral_nu = config["learning_lateral_nu"]
 
@@ -54,7 +54,7 @@ class SpikingNetwork(Network):
         elif self.learning_feedforward_type == "MSTDPET":
             self.learning_feedforward = MSTDPET
         else:
-            print("No learning for feedforward connections.")
+            # print("No learning for feedforward connections.")
             self.learning_feedforward = None
         self.learning_feedforward_nu = config["learning_feedforward_nu"]
 
@@ -97,47 +97,46 @@ class SpikingNetwork(Network):
     def build(self):
         """Build the spiking neural network architecture."""
         self.network = Network(dt=self.dt)  # , device=self.device)
-        self.input_layer = Input(n=self.n_inputs, traces=True)
-        self.layer_one = self.node_class(n=self.n_layer_one, traces=True)
-        self.layer_two = self.node_class(n=self.n_layer_two, traces=True)
-        self.layer_three = self.node_class(n=self.n_layer_three, traces=True)
+        self.input_layer = Input(n=self.n_inputs)
+        self.layer_one = self.node_class(n=self.n_layer_one)
+        self.layer_two = self.node_class(n=self.n_layer_two)
+        self.layer_three = self.node_class(n=self.n_layer_three)
         self.network.add_layer(self.input_layer, name="Input")
         self.network.add_layer(self.layer_one, name="Layer1")
         self.network.add_layer(self.layer_two, name="Layer2")
         self.network.add_layer(self.layer_three, name="Layer3")
+        # Add connections
+        # First feedforward
         self.network.add_connection(
             Connection(
                 source=self.input_layer,
                 target=self.layer_one,
                 w=self.ff1_weights,
-                update_rule=self.learning_feedforward,
-                nu=self.learning_feedforward_nu,
             ),
             source="Input",
             target="Layer1",
         )
+        # First recurrent
         self.network.add_connection(
             Connection(
                 source=self.layer_one,
                 target=self.layer_two,
                 w=self.ff2_weights,
-                update_rule=self.learning_feedforward,
-                nu=self.learning_feedforward_nu,
             ),
             source="Layer1",
             target="Layer2",
         )
+        # Second feedforward
         self.network.add_connection(
             Connection(
                 source=self.layer_two,
                 target=self.layer_three,
                 w=self.ff3_weights,
-                update_rule=self.learning_feedforward,
-                nu=self.learning_feedforward_nu,
             ),
             source="Layer2",
             target="Layer3",
         )
+        # Second recurrent
         self.network.add_connection(
             Connection(
                 source=self.layer_one,
@@ -149,6 +148,7 @@ class SpikingNetwork(Network):
             source="Layer1",
             target="Layer1",
         )
+        # Third feeforward
         self.network.add_connection(
             Connection(
                 source=self.layer_two,
@@ -160,6 +160,7 @@ class SpikingNetwork(Network):
             source="Layer2",
             target="Layer2",
         )
+        # Third recurren
         self.network.add_connection(
             Connection(
                 source=self.layer_three,
@@ -205,13 +206,12 @@ class SpikingNetwork(Network):
                 loc=input_mean, scale=input_scale, size=(self.T, self.n_layer_three)
             )
         ).float()
-        print(inputs.shape, noise1.shape, noise2.shape, noise3.shape)
         self.network.run(
             inputs={
                 "Input": inputs,
-                # "Layer1": noise1,
-                # "Layer2": noise2,
-                # "Layer3": noise3,
+                "Layer1": noise1,
+                "Layer2": noise2,
+                "Layer3": noise3,
             },
             time=self.T,
             train=True,
@@ -249,7 +249,7 @@ class SpikingNetwork(Network):
 
     def plot_last(self, config, save_to=None):
         """Plot activity for all layers."""
-        fig, ax = plt.subplots(nrows=3, ncols=5, figsize=(15, 10))
+        fig, ax = plt.subplots(nrows=3, ncols=5, figsize=(18, 10))
         # Retrieve monitors
         inp_s = self.input_monitor.get("s")
         inp_s = inp_s[:, 0, :]
@@ -282,33 +282,39 @@ class SpikingNetwork(Network):
         # plot input
         # Input
         h, w = layer1_v.shape
-        ax[0, 0].imshow(inp_s, aspect=w / h, origin="lower")
+        im = ax[0, 0].imshow(inp_s, aspect=w / h, origin="lower")
         ax[0, 0].set_title("Input spikes")
         ax[0, 0].set_xlabel("Time [ms]")
         ax[0, 0].set_ylabel("Input neurons")
+        fig.colorbar(im, ax=ax[0, 0])
         # Input ff weights
         ff_np = self.ff1_weights.detach().cpu().numpy()
-        ax[0, 1].imshow(ff_np, aspect="auto", origin="lower")
+        im = ax[0, 1].imshow(ff_np, aspect="auto", origin="lower")
         ax[0, 1].set_title("Feedforward")
         ax[0, 1].set_xlabel("Post")
         ax[0, 1].set_ylabel("Pre")
+        fig.colorbar(im, ax=ax[0, 1])
+
         # Input rec weights
         rec_np = self.rec1_weights.detach().cpu().numpy()
-        ax[0, 2].imshow(rec_np, aspect="auto", origin="lower")
+        im = ax[0, 2].imshow(rec_np, aspect="auto", origin="lower")
         ax[0, 2].set_title("Recurrent")
         ax[0, 2].set_xlabel("Post")
         ax[0, 2].set_ylabel("Pre")
+        fig.colorbar(im, ax=ax[0, 2])
         # Input voltage
         h, w = layer1_v.shape
-        ax[0, 3].imshow(layer1_v, aspect=w / h, origin="lower")
+        im = ax[0, 3].imshow(layer1_v, aspect=w / h, origin="lower")
         ax[0, 3].set_title("Voltage")
         ax[0, 3].set_xlabel("Time [ms]")
         ax[0, 3].set_ylabel("Neurons")
+        fig.colorbar(im, ax=ax[0, 3])
         # Layer 1  output spikes
-        ax[0, 4].imshow(layer1_s, aspect=w / h, origin="lower")
+        im = ax[0, 4].imshow(layer1_s, aspect=w / h, origin="lower")
         ax[0, 4].set_title("Spikes")
         ax[0, 4].set_xlabel("Time [ms]")
         ax[0, 4].set_ylabel("Neurons")
+        fig.colorbar(im, ax=ax[0, 4])
         # Layer 2
         # Input
         h, w = layer2_v.shape
@@ -317,33 +323,42 @@ class SpikingNetwork(Network):
             scale=config["noise_scale"],
             size=(self.n_layer_two, self.T),
         )
-        ax[1, 0].imshow(layer1_s + noise, aspect=w / h, origin="lower")
+        im = ax[1, 0].imshow(layer1_s + noise, aspect=w / h, origin="lower")
         ax[1, 0].set_title("Layer 1 spikes + noise")
         ax[1, 0].set_xlabel("Time [ms]")
         ax[1, 0].set_ylabel("Neurons")
+        fig.colorbar(im, ax=ax[1, 0])
         # Layer 2 ff weights
         ff_np = self.ff2_weights.detach().cpu().numpy()
-        ax[1, 1].imshow(ff_np, aspect="auto", origin="lower")
+        im = ax[1, 1].imshow(
+            ff_np,
+            aspect="auto",
+            origin="lower",
+        )
         ax[1, 1].set_title("Feedforward")
         ax[1, 1].set_xlabel("Post")
         ax[1, 1].set_ylabel("Pre")
+        fig.colorbar(im, ax=ax[1, 1])
         # Layer 2 rec weights
         rec_np = self.rec2_weights.detach().cpu().numpy()
-        ax[1, 2].imshow(rec_np, aspect="auto", origin="lower")
+        im = ax[1, 2].imshow(rec_np, aspect="auto", origin="lower")
         ax[1, 2].set_title("Recurrent")
         ax[1, 2].set_xlabel("Post")
         ax[1, 2].set_ylabel("Pre")
+        fig.colorbar(im, ax=ax[1, 2])
         # Layer 2 voltage
         h, w = layer2_v.shape
-        ax[1, 3].imshow(layer2_v, aspect=w / h, origin="lower")
+        im = ax[1, 3].imshow(layer2_v, aspect=w / h, origin="lower")
         ax[1, 3].set_title("Voltage")
         ax[1, 3].set_xlabel("Time [ms]")
         ax[1, 3].set_ylabel("Neurons")
+        fig.colorbar(im, ax=ax[1, 3])
         # Layer 2 output spikes
-        ax[1, 4].imshow(layer2_s, aspect=w / h, origin="lower")
+        im = ax[1, 4].imshow(layer2_s, aspect=w / h, origin="lower")
         ax[1, 4].set_title("Spikes")
         ax[1, 4].set_xlabel("Time [ms]")
         ax[1, 4].set_ylabel("Neurons")
+        fig.colorbar(im, ax=ax[1, 4])
         # Layer 3
         # Input
         h, w = layer3_v.shape
@@ -352,33 +367,38 @@ class SpikingNetwork(Network):
             scale=config["noise_scale"],
             size=(self.n_layer_three, self.T),
         )
-        ax[2, 0].imshow(np.add(layer2_s, noise), aspect=w / h, origin="lower")
+        im = ax[2, 0].imshow(np.add(layer2_s, noise), aspect=w / h, origin="lower")
         ax[2, 0].set_title("Layer 2 spikes + noise")
         ax[2, 0].set_xlabel("Time [ms]")
         ax[2, 0].set_ylabel("Neurons")
+        fig.colorbar(im, ax=ax[2, 0])
         # Layer 3 ff weights
         ff_np = self.ff3_weights.detach().cpu().numpy()
-        ax[2, 1].imshow(ff_np, aspect="auto", origin="lower")
+        im = ax[2, 1].imshow(ff_np, aspect="auto", origin="lower")
         ax[2, 1].set_title("Feedforward")
         ax[2, 1].set_xlabel("Post")
         ax[2, 1].set_ylabel("Pre")
+        fig.colorbar(im, ax=ax[2, 1])
         # Layer 3 rec weights
         rec_np = self.rec3_weights.detach().cpu().numpy()
-        ax[2, 2].imshow(rec_np, aspect="auto", origin="lower")
+        im = ax[2, 2].imshow(rec_np, aspect="auto", origin="lower")
         ax[2, 2].set_title("Recurrent")
         ax[2, 2].set_xlabel("Post")
         ax[2, 2].set_ylabel("Pre")
+        fig.colorbar(im, ax=ax[2, 2])
         # Layer 3 voltage
         h, w = layer3_v.shape
-        ax[2, 3].imshow(layer3_v, aspect=w / h, origin="lower")
+        im = ax[2, 3].imshow(layer3_v, aspect=w / h, origin="lower")
         ax[2, 3].set_title("Voltage")
         ax[2, 3].set_xlabel("Time [ms]")
         ax[2, 3].set_ylabel("Neurons")
+        fig.colorbar(im, ax=ax[2, 3])
         # Layer 3 output spikes
-        ax[2, 4].imshow(layer3_s, aspect=w / h, origin="lower")
+        im = ax[2, 4].imshow(layer3_s, aspect=w / h, origin="lower")
         ax[2, 4].set_title("Spikes")
         ax[2, 4].set_xlabel("Time [ms]")
         ax[2, 4].set_ylabel("Neurons")
+        fig.colorbar(im, ax=ax[2, 4])
 
         if save_to is not None:
             plt.tight_layout()

@@ -21,6 +21,27 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
+# Progress bar (graceful fallback if tqdm not installed)
+try:
+    from tqdm import tqdm  # type: ignore
+except Exception:  # pragma: no cover
+
+    class _DummyTqdm:
+        def __init__(self, total=None, desc=None, unit=None):
+            pass
+
+        def update(self, n=1):
+            pass
+
+        def close(self):
+            pass
+
+    def tqdm(iterable=None, total=None, desc=None, unit=None):
+        if iterable is None:
+            return _DummyTqdm(total=total, desc=desc, unit=unit)
+        return iterable
+
+
 from connections import connect_clustered_lateral, connect_one_to_one, connect_random
 from inputs import generate_input
 from networks import SpikingNetwork
@@ -33,8 +54,7 @@ def plot_metrics(input_type: str):
       metrics_weight{weight}_connection{conn_type}_input{input_type}.json
     with structure: {"layer1": {...}, "layer2": {...}, "layer3": {...}}
 
-    Saves one figure per metric with two subplots (Clustered, Random),
-    each showing metric vs weight for all three layers.
+    Saves one figure per metric with subplots per connection type.
     """
     base_dir = os.path.join(project_root, "results", input_type)
     if not os.path.isdir(base_dir):
@@ -87,9 +107,20 @@ def plot_metrics(input_type: str):
     for layer in metrics.values():
         metric_names.update(layer.keys())
 
+    # Desired order, include Baseline as well
+    desired_conns = ["Clustered", "Random", "Baseline"]
+    present_conns = [c for c in desired_conns if c in conns]
+    if not present_conns:
+        return
+
     for metric_name in sorted(metric_names):
-        fig, axes = plt.subplots(1, 2, figsize=(10, 4), sharey=True)
-        for ax, conn in zip(axes, ["Clustered", "Random"]):
+        fig, axes = plt.subplots(
+            1, len(present_conns), figsize=(5 * len(present_conns), 4), sharey=True
+        )
+        # Ensure axes is iterable
+        if not isinstance(axes, (list, np.ndarray)):
+            axes = [axes]
+        for ax, conn in zip(axes, present_conns):
             for layer_key in ("layer1", "layer2", "layer3"):
                 by_conn = metrics.get(layer_key, {}).get(metric_name, {})
                 y = [by_conn.get(conn, {}).get(w, np.nan) for w in weights]
@@ -104,7 +135,7 @@ def plot_metrics(input_type: str):
             ax.set_xlabel("weight")
             ax.grid(True, alpha=0.3)
         axes[0].set_ylabel(metric_name)
-        axes[1].legend(loc="best")
+        axes[-1].legend(loc="best")
         fig.suptitle(f"{metric_name} vs weight — {input_type}")
         out_path = os.path.join(base_dir, f"{metric_name}_trend_{input_type}.png")
         plt.tight_layout()
@@ -116,7 +147,7 @@ if __name__ == "__main__":
     # Grid search parameters
     NODE_TYPE = "LIF"  # "LIF" or "Izhikevich"
     WEIGHT_VALUES = [0.2, 0.5, 1.0]
-    LATERAL_CONNECTIONS = ["Clustered", "Random"]
+    LATERAL_CONNECTIONS = ["Baseline", "Clustered", "Random"]
 
     # Load config
     # Determine project root (parent of notebooks directory)
@@ -137,16 +168,28 @@ if __name__ == "__main__":
     n_inputs = config["n_inputs"]
 
     # Create feedforward connections
-    ff1 = connect_one_to_one(config["n_inputs"], config["n_layer_one"])
-    ff2 = connect_one_to_one(config["n_layer_one"], config["n_layer_two"])
-    ff3 = connect_one_to_one(config["n_layer_two"], config["n_layer_three"])
-    input_factor = 20
+    feed_forward_upscale = 20
+    ff1 = (
+        connect_one_to_one(config["n_inputs"], config["n_layer_one"])
+        * feed_forward_upscale
+    )
+    ff2 = (
+        connect_one_to_one(config["n_layer_one"], config["n_layer_two"])
+        * feed_forward_upscale
+    )
+    ff3 = (
+        connect_one_to_one(config["n_layer_two"], config["n_layer_three"])
+        * feed_forward_upscale
+    )
+    input_factor = 10
+    random_recurrent_factor = 2.5
 
     # Create inputs
     """
     T, n_inputs, dt, target_rate=10, bg_rate=5
     """
     # Weakly distributed input
+
     target_weakly_distr = np.concatenate(
         [
             np.arange(0, 14),
@@ -234,6 +277,9 @@ if __name__ == "__main__":
         "strongly_clustered": strongly_clustered,
     }
 
+    total_runs = len(WEIGHT_VALUES) * len(LATERAL_CONNECTIONS) * len(inputs)
+    pbar = tqdm(total=total_runs, desc="Grid search", unit="run")
+
     for weight in WEIGHT_VALUES:
         for conn_type in LATERAL_CONNECTIONS:
             for input_type, input_data in inputs.items():
@@ -288,12 +334,12 @@ if __name__ == "__main__":
                         )
                         * weight
                     )
-                else:
+                elif conn_type == "Random":
                     rec1 = (
                         connect_random(
                             config["n_layer_one"],
                             config["n_layer_one"],
-                            p=config["noise_level"],
+                            p=config["noise_level"] * random_recurrent_factor,
                         )
                         * weight
                     )
@@ -301,7 +347,7 @@ if __name__ == "__main__":
                         connect_random(
                             config["n_layer_two"],
                             config["n_layer_two"],
-                            p=config["noise_level"],
+                            p=config["noise_level"] * random_recurrent_factor,
                         )
                         * weight
                     )
@@ -309,10 +355,33 @@ if __name__ == "__main__":
                         connect_random(
                             config["n_layer_three"],
                             config["n_layer_three"],
-                            p=config["noise_level"],
+                            p=config["noise_level"] * random_recurrent_factor,
                         )
                         * weight
                     )
+                else:
+                    # Baseline: empty recurrent connections (no lateral)
+                    rec1 = (
+                        connect_random(
+                            config["n_layer_one"],
+                            config["n_layer_one"],
+                            p=config["noise_level"],
+                        )
+                    ) * 0
+                    rec2 = (
+                        connect_random(
+                            config["n_layer_two"],
+                            config["n_layer_two"],
+                            p=config["noise_level"],
+                        )
+                    ) * 0
+                    rec3 = (
+                        connect_random(
+                            config["n_layer_three"],
+                            config["n_layer_three"],
+                            p=config["noise_level"],
+                        )
+                    ) * 0
 
                 net.add_weights(ff1, rec1, ff2, rec2, ff3, rec3)
                 net.build()
@@ -355,6 +424,12 @@ if __name__ == "__main__":
                     json.dump(metrics_all, f, indent=2)
 
                 net.plot_last(config, save_to=result_plots_path)
+                print(
+                    f"Completed: weight={weight}, conn={conn_type}, input={input_type}"
+                )
+                pbar.update(1)
+
+    pbar.close()
 
     # After all runs, produce comparison plots per input type
     for it in inputs.keys():

@@ -1,23 +1,23 @@
 {
   "layer1": {
-    "rsync": 0.007967566985323617,
-    "mean_sc": 7.546666666666667,
-    "max_sc": 22.0,
-    "sparseness": 0.9938795986622073,
-    "rate_of_fire": 7.546666666666667
+    "rsync": 0.009144021247169029,
+    "mean_sc": 7.8,
+    "max_sc": 26.0,
+    "sparseness": 0.9935618729096989,
+    "rate_of_fire": 7.8
   },
   "layer2": {
-    "rsync": 0.0,
-    "mean_sc": 0.0,
-    "max_sc": 0.0,
-    "sparseness": 0.0,
-    "rate_of_fire": 0.0
+    "rsync": 0.009674546622923772,
+    "mean_sc": 7.933333333333334,
+    "max_sc": 26.0,
+    "sparseness": 0.9933946488294314,
+    "rate_of_fire": 7.933333333333334
   },
   "layer3": {
-    "rsync": 0.0,
-    "mean_sc": 0.0,
-    "max_sc": 0.0,
-    "sparseness": 0.0,
-    "rate_of_fire": 0.0
+    "rsync": 0.01022594757141808,
+    "mean_sc": 8.026666666666667,
+    "max_sc": 26.0,
+    "sparseness": 0.9932775919732441,
+    "rate_of_fire": 8.026666666666667
   }
 }
