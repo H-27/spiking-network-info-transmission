@@ -166,9 +166,11 @@ if __name__ == "__main__":
     T = config["time"]
     dt = config["dt"]
     n_inputs = config["n_inputs"]
+    input_factor = 3
+    random_recurrent_factor = 2.5
+    feed_forward_upscale = 20
 
     # Create feedforward connections
-    feed_forward_upscale = 20
     ff1 = (
         connect_one_to_one(config["n_inputs"], config["n_layer_one"])
         * feed_forward_upscale
@@ -181,8 +183,6 @@ if __name__ == "__main__":
         connect_one_to_one(config["n_layer_two"], config["n_layer_three"])
         * feed_forward_upscale
     )
-    input_factor = 10
-    random_recurrent_factor = 2.5
 
     # Create inputs
     """

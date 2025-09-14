@@ -96,6 +96,8 @@ class SpikingNetwork(Network):
 
     def build(self):
         """Build the spiking neural network architecture."""
+        # TODO: Add option for device
+        # TODO: Add option for neuron parameters
         self.network = Network(dt=self.dt)  # , device=self.device)
         self.input_layer = Input(n=self.n_inputs)
         self.layer_one = self.node_class(n=self.n_layer_one)
